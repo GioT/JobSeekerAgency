@@ -6,15 +6,6 @@ from playwright.async_api import async_playwright
 from langchain.agents import load_tools, initialize_agent, AgentType, tool
 
 @tool
-# def coolest_guy(text:str) -> str:
-#     '''
-#     Returns the name of the coolest person in the universe.
-#     Expects an input of an empty string '' and returns the name of the coolest
-#     person in the universe
-#     '''
-#     return 'Jose Portilla'
-
-@tool
 def get_NOVARTIS_jobs() -> str:
     """
     This tool function helps you get NOVARTIS current job list 
@@ -160,7 +151,7 @@ def get_NOVARTIS_jobs() -> str:
 
     ## MAIN ##
     joblist = asyncio.run(main())
-    print(joblist)
+    # print(joblist)
     return str('Here is the job list:\n'+joblist)
 
 @tool
@@ -221,6 +212,225 @@ def get_AWS_jobs() -> str:
 
 
     joblist = asyncio.run(list_jobs(URL))
-    print(joblist)
+    # print(joblist)
     return str('Here is the job list:\n'+joblist)
+
+@tool
+def get_YPSOMED_jobs() -> str:
+    
+    """
+    This tool function helps you get YPSOMED current job list 
+    """
+    
+    # print('Using Ypsomed tool')
+    
+    START_URL = "https://www.ypsomed.com/en/careers/jobs-at-ypsomed"
+    CAREERS_FALLBACK = "https://careers.ypsomed.com/ypsomed/job/#/en"
+    
+    def base_without_hash(url):
+        parts = list(urlsplit(url))
+        parts[3] = ""  # query
+        parts[4] = ""  # fragment
+        return urlunsplit(parts)
+    
+    def merge_url(base, href):
+        href = (href or "").strip()
+        if not href:
+            return base
+        if href.startswith("#"):
+            return base_without_hash(base) + href
+        return href if href.startswith(("http://", "https://")) else urljoin(base, href)
+    
+    def extract_jobs_from_careers(html, base_url):
+        soup = BeautifulSoup(html, "html.parser")
+        jobs = []
+        for a in soup.select("a[href]"):
+            href = a.get("href", "")
+            h = href.lower()
+            if not h or any(s in h for s in ["mailto:", "tel:", "javascript:"]):
+                continue
+            if "jobabo" in h or "login" in h or "register" in h:
+                continue
+            if "job" not in h:
+                continue
+            # Avoid obvious nav or filters
+            text = " ".join(a.stripped_strings)
+            if not text or len(text) < 3:
+                continue
+    
+            # Title
+            title_el = a.find(["h2", "h3"]) or a
+            title = title_el.get_text(" ", strip=True)
+    
+            # Location (look inside anchor first, then nearby)
+            loc = ""
+            loc_el = a.find(attrs={"class": re.compile(r"(loc|place|city|ort|standort)", re.I)})
+            if not loc_el:
+                parent = a.find_parent(["li", "div", "article"])
+                if parent:
+                    loc_el = parent.find(attrs={"class": re.compile(r"(loc|place|city|ort|standort)", re.I)})
+            if loc_el:
+                loc = loc_el.get_text(" ", strip=True)
+    
+            # Date (published/posting)
+            date = ""
+            date_el = a.find(attrs={"class": re.compile(r"(date|datum|published|veröffentlicht)", re.I)})
+            if not date_el:
+                parent = a.find_parent(["li", "div", "article"])
+                if parent:
+                    date_el = parent.find(attrs={"class": re.compile(r"(date|datum|published|veröffentlicht)", re.I)})
+            if date_el:
+                date = date_el.get_text(" ", strip=True)
+            else:
+                m = re.search(r"\b\d{1,2}\.\d{1,2}\.\d{2,4}\b", text)
+                if m:
+                    date = m.group(0)
+    
+            url = merge_url(base_url, href)
+            if title and "job" in h:
+                jobs.append({"title": title, "location": loc, "date": date, "url": url})
+    
+        # Deduplicate
+        seen = set()
+        unique = []
+        for j in jobs:
+            key = (j["title"], j.get("location", ""), j["url"])
+            if key not in seen:
+                seen.add(key)
+                unique.append(j)
+        return unique
+    
+    async def click_cookies(target):
+        labels = [
+            "Accept all", "Accept All", "Accept", "I agree", "Allow all", "Allow All",
+            "OK", "Got it", "Agree", "Alle akzeptieren", "Alles akzeptieren", "Akzeptieren"
+        ]
+        for name in labels:
+            try:
+                await target.get_by_role("button", name=name, exact=True).click(timeout=1000)
+                return True
+            except:
+                pass
+        selectors = [
+            "button[aria-label*='accept' i]", "button[aria-label*='agree' i]",
+            "button:has-text('Accept')", "button:has-text('OK')", "button:has-text('Alle akzeptieren')"
+        ]
+        for sel in selectors:
+            try:
+                await target.click(sel, timeout=1000)
+                return True
+            except:
+                pass
+        return False
+    
+    async def auto_scroll(context):
+        try:
+            await context.evaluate("""
+                () => new Promise(resolve => {
+                    let total = 0, step = 800, count = 0;
+                    const max = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+                    const timer = setInterval(() => {
+                        window.scrollBy(0, step);
+                        total += step; count++;
+                        if (total >= max*1.2 || count >= 12) { clearInterval(timer); resolve(); }
+                    }, 200);
+                })
+            """)
+        except:
+            pass
+    
+    async def scrape_from_careers_frame(page):
+        jobs = []
+        # Try to find a careers iframe and parse from its frame
+        for frame in page.frames:
+            if frame == page.main_frame:
+                continue
+            furl = (frame.url or "").lower()
+            if "careers.ypsomed.com" in furl or "ypsomed" in furl and "job" in furl:
+                try:
+                    await click_cookies(frame)
+                except:
+                    pass
+                try:
+                    await auto_scroll(frame)
+                except:
+                    pass
+                try:
+                    html = await frame.content()
+                    jobs = extract_jobs_from_careers(html, frame.url)
+                    if jobs:
+                        return jobs
+                except:
+                    continue
+        # Fallback: inspect iframes in DOM and navigate directly to their src
+        try:
+            main_html = await page.content()
+            soup = BeautifulSoup(main_html, "html.parser")
+            for iframe in soup.select("iframe[src]"):
+                src = iframe.get("src", "")
+                if "careers.ypsomed.com" in src:
+                    target = merge_url(page.url, src)
+                    await page.goto(target, wait_until="networkidle", timeout=5000)
+                    await click_cookies(page)
+                    await auto_scroll(page)
+                    html = await page.content()
+                    jobs = extract_jobs_from_careers(html, page.url)
+                    if jobs:
+                        return jobs
+        except:
+            pass
+        return jobs
+    
+    async def main():
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto(START_URL, wait_until="networkidle", timeout=5000)
+            await click_cookies(page)
+            await auto_scroll(page)
+    
+            jobs = await scrape_from_careers_frame(page)
+    
+            # If none found via iframe, go directly to careers portal
+            if not jobs:
+                try:
+                    await page.goto(CAREERS_FALLBACK, wait_until="networkidle", timeout=5000)
+                    await click_cookies(page)
+                    await auto_scroll(page)
+                    html = await page.content()
+                    jobs = extract_jobs_from_careers(html, page.url)
+                except:
+                    jobs = []
+    
+            # Print results
+            # Format: Title | Location | URL | Date (if available)
+            seen = set()
+            joblist = ''
+            for j in jobs:
+                key = (j["title"], j.get("location", ""), j["url"])
+                if key in seen:
+                    continue
+                seen.add(key)
+                title = j["title"].strip()
+                loc = j.get("location", "").strip()
+                date = j.get("date", "").strip()
+                url = j["url"]
+                parts = [title]
+                if loc:
+                    parts.append(loc)
+                parts.append(url)
+                if date:
+                    parts.append(date)
+                # print(" | ".join(parts))
+                l = (f"{title} - {url}\n")
+                joblist += l
+    
+            await browser.close()
+            print(joblist)
+            return joblist
+    
+    joblist = asyncio.run(main())
+    # print(joblist)
+    return str('Here is the job list:\n'+joblist)
+
     
