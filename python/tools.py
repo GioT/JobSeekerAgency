@@ -205,7 +205,7 @@ def get_AWS_jobs() -> str:
         
         joblist = ''
         for title, link in jobs:
-            l = (f"{title} - {link}\n")
+            l = (f"- {title} - {link}\n")
             joblist += l
             # print(f"{title}\t{link}")
         return joblist
@@ -213,7 +213,7 @@ def get_AWS_jobs() -> str:
 
     joblist = asyncio.run(list_jobs(URL))
     # print(joblist)
-    return str('Here is the job list:\n'+joblist)
+    return str('Here is the job list, each line contain the job name followed by the url:\n'+joblist)
 
 @tool
 def get_YPSOMED_jobs() -> str:
@@ -422,11 +422,11 @@ def get_YPSOMED_jobs() -> str:
                 if date:
                     parts.append(date)
                 # print(" | ".join(parts))
-                l = (f"{title} - {url}\n")
+                l = (f"- {title} - {url}\n")
                 joblist += l
     
             await browser.close()
-            print(joblist)
+            # print(joblist)
             return joblist
     
     joblist = asyncio.run(main())

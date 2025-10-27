@@ -1,4 +1,5 @@
 from typing import List,Sequence,TypedDict,Annotated,Literal
+import subprocess as sub
 ## langchain
 from langchain_core.messages import ToolMessage, BaseMessage, AIMessage, HumanMessage, SystemMessage
 from langchain_core.prompts import PromptTemplate, ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
@@ -18,7 +19,7 @@ def joblist_formatting(state):
     Simply takes the list of job list string and formats to json
     """
 
-    print(f'\n>> Formatting job list >>\n')
+    print(f'>> 1.a Formatting job list >>')
     
     messages = state['messages']
     # state["messages"].append(system_message)
@@ -48,7 +49,7 @@ def code_writing(state):
     Agent writing the code to retrieve jobs for companies
     """
     
-    print(f'\n>> Code Writing, iteration {state['codeiter']}>>\n')
+    print(f'>> 1.b Code Writing, iteration {state['codeiter']}>>')
 
     # define the system message
     system_message = SystemMessage(
@@ -56,6 +57,7 @@ def code_writing(state):
 
         1. you use beautiful soup and async_playwright
         2. you should only output python code
+        3. DO NOT include Python code block markers (```python and ```) in your output
         """
     ) # 3. the ouptut of the code should be a list of job names followed by their application url
     # 3. you end with with 'await main()' instead of 'asyncio.run(main())
@@ -69,8 +71,7 @@ def code_writing(state):
     
     if 1<3:
         # define the messages
-        messages = state['messages']
-        prompt   = ChatPromptTemplate.from_messages(messages).format()
+        prompt   = ChatPromptTemplate.from_messages(state['messages']).format()
         # select coding model (here gpt 5)
         # model    = ChatOpenAI(model=['gpt-4o-mini','gpt-5'][1],openai_api_key=os.environ['OPENAI_API_KEY'],temperature=0)
         model      = ChatAnthropic(model="claude-sonnet-4-5",temperature=0)
@@ -97,7 +98,7 @@ def code_eval(state):
     Agent responsible for making sure the code is running
     """
 
-    print('\n>> Code Evaluation >>\n')
+    print('>> 2. Code Evaluation >>')
 
     if 1 < 3:
         # save code to file to check whether it works
