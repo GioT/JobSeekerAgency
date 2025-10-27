@@ -216,221 +216,146 @@ def get_AWS_jobs() -> str:
     return str('Here is the job list, each line contain the job name followed by the url:\n'+joblist)
 
 @tool
-def get_YPSOMED_jobs() -> str:
+def get_YPSOMED_jobs():
+    """This tool function helps you get YPSOMED current job list"""
     
-    """
-    This tool function helps you get YPSOMED current job list 
-    """
-    
-    # print('Using Ypsomed tool')
-    
-    START_URL = "https://www.ypsomed.com/en/careers/jobs-at-ypsomed"
-    CAREERS_FALLBACK = "https://careers.ypsomed.com/ypsomed/job/#/en"
-    
-    def base_without_hash(url):
-        parts = list(urlsplit(url))
-        parts[3] = ""  # query
-        parts[4] = ""  # fragment
-        return urlunsplit(parts)
-    
-    def merge_url(base, href):
-        href = (href or "").strip()
-        if not href:
-            return base
-        if href.startswith("#"):
-            return base_without_hash(base) + href
-        return href if href.startswith(("http://", "https://")) else urljoin(base, href)
-    
-    def extract_jobs_from_careers(html, base_url):
-        soup = BeautifulSoup(html, "html.parser")
-        jobs = []
-        for a in soup.select("a[href]"):
-            href = a.get("href", "")
-            h = href.lower()
-            if not h or any(s in h for s in ["mailto:", "tel:", "javascript:"]):
-                continue
-            if "jobabo" in h or "login" in h or "register" in h:
-                continue
-            if "job" not in h:
-                continue
-            # Avoid obvious nav or filters
-            text = " ".join(a.stripped_strings)
-            if not text or len(text) < 3:
-                continue
-    
-            # Title
-            title_el = a.find(["h2", "h3"]) or a
-            title = title_el.get_text(" ", strip=True)
-    
-            # Location (look inside anchor first, then nearby)
-            loc = ""
-            loc_el = a.find(attrs={"class": re.compile(r"(loc|place|city|ort|standort)", re.I)})
-            if not loc_el:
-                parent = a.find_parent(["li", "div", "article"])
-                if parent:
-                    loc_el = parent.find(attrs={"class": re.compile(r"(loc|place|city|ort|standort)", re.I)})
-            if loc_el:
-                loc = loc_el.get_text(" ", strip=True)
-    
-            # Date (published/posting)
-            date = ""
-            date_el = a.find(attrs={"class": re.compile(r"(date|datum|published|veröffentlicht)", re.I)})
-            if not date_el:
-                parent = a.find_parent(["li", "div", "article"])
-                if parent:
-                    date_el = parent.find(attrs={"class": re.compile(r"(date|datum|published|veröffentlicht)", re.I)})
-            if date_el:
-                date = date_el.get_text(" ", strip=True)
-            else:
-                m = re.search(r"\b\d{1,2}\.\d{1,2}\.\d{2,4}\b", text)
-                if m:
-                    date = m.group(0)
-    
-            url = merge_url(base_url, href)
-            if title and "job" in h:
-                jobs.append({"title": title, "location": loc, "date": date, "url": url})
-    
-        # Deduplicate
-        seen = set()
-        unique = []
-        for j in jobs:
-            key = (j["title"], j.get("location", ""), j["url"])
-            if key not in seen:
-                seen.add(key)
-                unique.append(j)
-        return unique
-    
-    async def click_cookies(target):
-        labels = [
-            "Accept all", "Accept All", "Accept", "I agree", "Allow all", "Allow All",
-            "OK", "Got it", "Agree", "Alle akzeptieren", "Alles akzeptieren", "Akzeptieren"
-        ]
-        for name in labels:
-            try:
-                await target.get_by_role("button", name=name, exact=True).click(timeout=1000)
-                return True
-            except:
-                pass
-        selectors = [
-            "button[aria-label*='accept' i]", "button[aria-label*='agree' i]",
-            "button:has-text('Accept')", "button:has-text('OK')", "button:has-text('Alle akzeptieren')"
-        ]
-        for sel in selectors:
-            try:
-                await target.click(sel, timeout=1000)
-                return True
-            except:
-                pass
-        return False
-    
-    async def auto_scroll(context):
-        try:
-            await context.evaluate("""
-                () => new Promise(resolve => {
-                    let total = 0, step = 800, count = 0;
-                    const max = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-                    const timer = setInterval(() => {
-                        window.scrollBy(0, step);
-                        total += step; count++;
-                        if (total >= max*1.2 || count >= 12) { clearInterval(timer); resolve(); }
-                    }, 200);
-                })
-            """)
-        except:
-            pass
-    
-    async def scrape_from_careers_frame(page):
-        jobs = []
-        # Try to find a careers iframe and parse from its frame
-        for frame in page.frames:
-            if frame == page.main_frame:
-                continue
-            furl = (frame.url or "").lower()
-            if "careers.ypsomed.com" in furl or "ypsomed" in furl and "job" in furl:
-                try:
-                    await click_cookies(frame)
-                except:
-                    pass
-                try:
-                    await auto_scroll(frame)
-                except:
-                    pass
-                try:
-                    html = await frame.content()
-                    jobs = extract_jobs_from_careers(html, frame.url)
-                    if jobs:
-                        return jobs
-                except:
-                    continue
-        # Fallback: inspect iframes in DOM and navigate directly to their src
-        try:
-            main_html = await page.content()
-            soup = BeautifulSoup(main_html, "html.parser")
-            for iframe in soup.select("iframe[src]"):
-                src = iframe.get("src", "")
-                if "careers.ypsomed.com" in src:
-                    target = merge_url(page.url, src)
-                    await page.goto(target, wait_until="networkidle", timeout=5000)
-                    await click_cookies(page)
-                    await auto_scroll(page)
-                    html = await page.content()
-                    jobs = extract_jobs_from_careers(html, page.url)
-                    if jobs:
-                        return jobs
-        except:
-            pass
-        return jobs
-    
-    async def main():
+    async def get_ypsomed_jobs():    
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             page = await browser.new_page()
-            await page.goto(START_URL, wait_until="networkidle", timeout=5000)
-            await click_cookies(page)
-            await auto_scroll(page)
-    
-            jobs = await scrape_from_careers_frame(page)
-    
-            # If none found via iframe, go directly to careers portal
-            if not jobs:
-                try:
-                    await page.goto(CAREERS_FALLBACK, wait_until="networkidle", timeout=5000)
-                    await click_cookies(page)
-                    await auto_scroll(page)
-                    html = await page.content()
-                    jobs = extract_jobs_from_careers(html, page.url)
-                except:
-                    jobs = []
-    
-            # Print results
-            # Format: Title | Location | URL | Date (if available)
-            seen = set()
-            joblist = ''
-            for j in jobs:
-                key = (j["title"], j.get("location", ""), j["url"])
-                if key in seen:
-                    continue
-                seen.add(key)
-                title = j["title"].strip()
-                loc = j.get("location", "").strip()
-                date = j.get("date", "").strip()
-                url = j["url"]
-                parts = [title]
-                if loc:
-                    parts.append(loc)
-                parts.append(url)
-                if date:
-                    parts.append(date)
-                # print(" | ".join(parts))
-                l = (f"- {title} - {url}\n")
-                joblist += l
-    
+            await page.goto('https://careers.ypsomed.com/ypsomed/en/professional/', wait_until='networkidle')
+            
+            await page.wait_for_timeout(5000)
+            
+            try:
+                await page.wait_for_selector('[data-ph-at-id="jobs-list"]', timeout=10000)
+            except:
+                pass
+            
+            content = await page.content()
+            
+            jobs_data = await page.evaluate('''() => {
+                const jobs = [];
+                const jobElements = document.querySelectorAll('[data-ph-at-id="job-link"]');
+                jobElements.forEach(job => {
+                    const title = job.textContent.trim();
+                    const link = job.href;
+                    const parent = job.closest('tr') || job.closest('div');
+                    let location = '';
+                    if (parent) {
+                        const locationElem = parent.querySelector('[data-ph-at-id="job-location"]');
+                        if (locationElem) location = locationElem.textContent.trim();
+                    }
+                    jobs.push({title, link, location});
+                });
+                return jobs;
+            }''')
+            
             await browser.close()
-            # print(joblist)
-            return joblist
-    
-    joblist = asyncio.run(main())
-    # print(joblist)
-    return str('Here is the job list:\n'+joblist)
+            
+            if not jobs_data:
+                soup = BeautifulSoup(content, 'html.parser')
+                all_links = soup.find_all('a', href=True)
+                jobs_data = []
+                for link in all_links:
+                    href = link.get('href', '')
+                    if 'job' in href.lower() and len(link.get_text(strip=True)) > 5:
+                        title = link.get_text(strip=True)
+                        full_link = href if href.startswith('http') else 'https://careers.ypsomed.com' + href
+                        jobs_data.append({'title': title, 'link': full_link, 'location': ''})
+            
+            if not jobs_data:
+                return "No jobs found or page structure has changed"
+            
+            result = []
+            for job in jobs_data:
+                location_str = f" - {job['location']}" if job['location'] else ""
+                result.append(f"- {job['title']}{location_str} - {job['link']}")
+            
+            return "\n".join(result)
+    ## MAIN ##
+    # =========================================
+    # this runs outside of async
+    ## await get_YPSOMED_jobs() # from juypyter
+    result = asyncio.run(get_ypsomed_jobs())
+    print(result)
+    return result
 
+@tool
+def get_VISIUM_jobs():
+    """This tool function helps you get VISIUM current job list"""
+    async def get_visium_jobs():
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            await page.goto('https://www.visium.com/join-us#open-positions', wait_until='networkidle')
+            await page.wait_for_timeout(5000)
+            
+            await page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+            await page.wait_for_timeout(3000)
+            
+            try:
+                await page.wait_for_selector('[id*="open-position"], [class*="job"], [class*="position"], [class*="career"], [data-job], [role="listitem"]', timeout=5000)
+            except:
+                pass
+            
+            content = await page.content()
+            await browser.close()
+            
+            soup = BeautifulSoup(content, 'html.parser')
+            
+            jobs = []
+            
+            open_positions_section = soup.find(id=lambda x: x and 'open-position' in x.lower()) or soup.find(class_=lambda x: x and any(term in str(x).lower() for term in ['open-position', 'job-list', 'career-list', 'position-list']))
+            
+            if open_positions_section:
+                job_elements = open_positions_section.find_all(['a', 'div', 'li'], recursive=True)
+                
+                for elem in job_elements:
+                    text = elem.get_text(strip=True)
+                    
+                    if 15 < len(text) < 150 and not any(skip in text.lower() for skip in ['view open position', 'explore benefit', 'apply now', 'learn more', 'read more', 'click here']):
+                        link = ''
+                        if elem.name == 'a':
+                            link = elem.get('href', '')
+                        else:
+                            link_elem = elem.find('a', recursive=False)
+                            if link_elem:
+                                link = link_elem.get('href', '')
+                        
+                        if link and not link.startswith('http'):
+                            if link.startswith('/'):
+                                link = 'https://www.visium.com' + link
+                            else:
+                                link = 'https://www.visium.com/' + link
+                        
+                        if link and 'job' in link.lower() or 'career' in link.lower() or 'position' in link.lower():
+                            job_entry = f"{text} - {link}"
+                            if job_entry not in jobs:
+                                jobs.append(job_entry)
+            
+            if not jobs:
+                all_links = soup.find_all('a', href=True)
+                for link_elem in all_links:
+                    href = link_elem.get('href', '')
+                    if any(term in href.lower() for term in ['greenhouse', 'lever', 'workday', 'bamboohr', 'job', 'career', 'position', 'apply']):
+                        text = link_elem.get_text(strip=True)
+                        if 10 < len(text) < 150:
+                            if not href.startswith('http'):
+                                if href.startswith('/'):
+                                    href = 'https://www.visium.com' + href
+                                else:
+                                    href = 'https://www.visium.com/' + href
+                            job_entry = f"{text} - {href}"
+                            if job_entry not in jobs:
+                                jobs.append(job_entry)
+            
+            if not jobs:
+                return "No job listings found on the page. The page may not have open positions or uses a different structure."
+            
+            return '\n'.join(jobs[:30])
     
+    # def main():
+    result = asyncio.run(get_visium_jobs())
+    # print(result)
+    return result

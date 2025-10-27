@@ -13,6 +13,20 @@ from langgraph.graph import START, END, StateGraph, MessagesState
 from pydantic import BaseModel, Field
 from typing import List,Sequence,TypedDict,Annotated,Literal
 
+# CLASSES
+# =======================
+
+ # define the format of the final joblist
+class JobList(BaseModel):
+    name: str = Field(description='Name of the job')
+    url: list = Field(description='The url of the job')
+
+# FUNCTIONS
+# =======================
+
+#~~~~~~~# 
+# NODES #
+#~~~~~~~# 
 
 def joblist_formatting(state):
     """
@@ -24,19 +38,13 @@ def joblist_formatting(state):
     messages = state['messages']
     # state["messages"].append(system_message)
     state['joblist'] = messages[-1].content
-
-    # define the format of the final joblist
-    class JobList(BaseModel):
-        name: str = Field(description='Name of the job')
-        url: list = Field(description='The url of the job')
     
+    # require output to match JobList from Pydantic
     parser       = PydanticOutputParser(pydantic_object=JobList)
-    
     human_prompt = HumanMessagePromptTemplate.from_template("{request}\n{format_instructions}")
     chat_prompt  = ChatPromptTemplate.from_messages([human_prompt])
     request      = chat_prompt.format_prompt(request=f"can you split this list {state['joblist']}, which contains job name and url into a nice json format?",
                                          format_instructions=parser.get_format_instructions()).to_messages()
-    # model        = ChatOpenAI(model=['gpt-4o-mini','gpt-5'][1],openai_api_key=os.environ['OPENAI_API_KEY'],temperature=0)
     model        = ChatAnthropic(model='claude-sonnet-4-5',temperature=0)
     response     = model.invoke(request)
 
@@ -55,15 +63,17 @@ def code_writing(state):
     system_message = SystemMessage(
         content="""You are an expert programmer that is ready to help write some clean and concise python code. Please ensure that:
 
-        1. you use beautiful soup and async_playwright
+        1. you use beautiful soup, async_playwright and asyncio.run()
         2. you should only output python code
         3. DO NOT include Python code block markers (```python and ```) in your output
+        4. write the code as a function that outputs a string
         """
     ) # 3. the ouptut of the code should be a list of job names followed by their application url
     # 3. you end with with 'await main()' instead of 'asyncio.run(main())
     sel_               = state['company']
     company2careerpage = state['company2careerpage']
-    question   = f"""can you write a short python code to list the jobs from the company {sel_} career page ({company2careerpage[sel_]})?""" 
+    question   = f"""can you write a short python code to list the jobs from the company {sel_} career page ({company2careerpage[sel_]})?\n
+    {state['question']}""" 
 
     state["messages"].append(HumanMessage(content=question))
     state["messages"].append(system_message)
@@ -146,7 +156,47 @@ def code_eval(state):
     print('\n> response:',response.content)
     state['messages'].append(response) # don't forget to add message to the response!
     # update the request in case we need to re-write the code
-    question = f'The following code "{state['codescript']}" got this output "{p.stdout.decode()}" and got this error: "{response.content}" - can you re-write the code by fixing the error?'
-    state["question"] = HumanMessage(content=question)
+    question = f'The following code that you wrote "{state['codescript']}" got this output "{p.stdout.decode()}" and got this error: "{response.content}" - can you re-write the code by fixing the error?'
+    state["question"] = question
     
     return state
+pass
+#~~~~~~~# 
+# EDGES #
+#~~~~~~~# 
+
+def Are_tools_used(state)-> Literal['tools','codeWriter','formatter']:
+    
+    print('>> 0.1 Are tools used?')
+    
+    messages = state["messages"]
+    last_message = messages[-1]
+
+    # If the LLM makes a tool call, then perform an action
+    if last_message.tool_calls:
+        print('> 0.2 calling tool')
+        # return END
+        return "tools"
+    elif last_message.content == 'No':
+        print('> 0.3 proceeding to code writing')
+        return "codeWriter"
+    return 'formatter'
+    
+def Is_code_ok_YN(state) -> Literal['codeWriter',END]:
+    """
+    If the code did not pass all desirability criteria, returns to code writer for correction
+    """
+    messages = state['messages']
+    
+    print('>> Is_code_ok_YN >>')
+    
+    last_message = state['messages'][-1].content
+    # if 
+    if last_message == 'Yes' or state['codeiter'] > 10:
+        print('> calling tools\n')
+        return END # calls the tools node here
+    else:
+        print('> returning code to code writer')
+        return 'codeWriter'
+        
+    return END
