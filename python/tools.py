@@ -3,9 +3,9 @@ import re
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
-from langchain.agents import load_tools, initialize_agent, AgentType, tool
+# from langchain.agents import tool
 
-@tool
+# @tool
 def get_NOVARTIS_jobs() -> str:
     """
     This tool function helps you get NOVARTIS current job list 
@@ -154,7 +154,7 @@ def get_NOVARTIS_jobs() -> str:
     # print(joblist)
     return str('Here is the job list:\n'+joblist)
 
-@tool
+# @tool
 def get_AWS_jobs() -> str:
     """
     This tool function helps you get AWS current job list 
@@ -215,7 +215,7 @@ def get_AWS_jobs() -> str:
     # print(joblist)
     return str('Here is the job list:\n'+joblist)
 
-@tool
+# @tool
 def get_YPSOMED_jobs() -> str:
     
     """
