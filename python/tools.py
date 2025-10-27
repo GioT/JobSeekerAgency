@@ -212,7 +212,7 @@ def get_AWS_jobs() -> str:
 
 
     joblist = asyncio.run(list_jobs(URL))
-    print(joblist)
+    # print(joblist)
     return str('Here is the job list:\n'+joblist)
 
 @tool
