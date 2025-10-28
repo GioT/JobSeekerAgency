@@ -156,7 +156,7 @@ def code_eval(state):
     print('\n> response:',response.content)
     state['messages'].append(response) # don't forget to add message to the response!
     # update the request in case we need to re-write the code
-    question = f'The following code that you wrote "{state['codescript']}" got this output "{p.stdout.decode()}" and got this error: "{response.content}" - can you re-write the code by fixing the error?'
+    question = f'Here is the code that you previously wrote:\n "{state['codescript']}"\n, which got this output "{p.stdout.decode()}" and got this error: "{response.content}" - can you re-write the code by fixing the error?'
     state["question"] = question
     
     return state
@@ -165,38 +165,3 @@ pass
 # EDGES #
 #~~~~~~~# 
 
-def Are_tools_used(state)-> Literal['tools','codeWriter','formatter']:
-    
-    print('>> 0.1 Are tools used?')
-    
-    messages = state["messages"]
-    last_message = messages[-1]
-
-    # If the LLM makes a tool call, then perform an action
-    if last_message.tool_calls:
-        print('> 0.2 calling tool')
-        # return END
-        return "tools"
-    elif last_message.content == 'No':
-        print('> 0.3 proceeding to code writing')
-        return "codeWriter"
-    return 'formatter'
-    
-def Is_code_ok_YN(state) -> Literal['codeWriter',END]:
-    """
-    If the code did not pass all desirability criteria, returns to code writer for correction
-    """
-    messages = state['messages']
-    
-    print('>> Is_code_ok_YN >>')
-    
-    last_message = state['messages'][-1].content
-    # if 
-    if last_message == 'Yes' or state['codeiter'] > 10:
-        print('> calling tools\n')
-        return END # calls the tools node here
-    else:
-        print('> returning code to code writer')
-        return 'codeWriter'
-        
-    return END

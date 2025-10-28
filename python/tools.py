@@ -4,6 +4,91 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 from langchain.tools import tool
+import requests
+from collections import Counter
+
+@tool
+def get_summary_html(url: str) -> str:
+    """
+    Summarizes the HTML from a URL.
+    
+    Returns the full HTML string (decoded as text).
+    """
+    response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+    soup = BeautifulSoup(response.content, 'html.parser')
+    
+    links = soup.find_all('a', href=True)
+    job_links = [a for a in links if any(keyword in a.get_text().lower() or keyword in a['href'].lower() 
+                                          for keyword in ['job', 'career', 'position', 'opening', 'apply', 'vacancy'])]
+    
+    forms = soup.find_all('form')
+    buttons = soup.find_all('button')
+    inputs = soup.find_all('input')
+    
+    classes = [cls for elem in soup.find_all(class_=True) for cls in elem.get('class', [])]
+    class_counts = Counter(classes).most_common(20)
+    
+    ids = [elem.get('id') for elem in soup.find_all(id=True)]
+    id_counts = Counter(ids).most_common(20)
+    
+    job_containers = soup.find_all(['div', 'li', 'article', 'section'], 
+                                    class_=re.compile(r'job|career|position|listing|card', re.I))
+    
+    pagination = soup.find_all(['a', 'button', 'div'], 
+                                class_=re.compile(r'pag|next|prev|page', re.I))
+    
+    scripts = soup.find_all('script')
+    api_patterns = [s for s in scripts if 'api' in s.get_text().lower() or 'fetch' in s.get_text().lower()]
+    
+    html_summary = f"""
+    <html>
+    <head><title>Career Page Analysis: {url}</title></head>
+    <body>
+        <h1>Career Page Analysis</h1>
+        <h2>URL: {url}</h2>
+        
+        <h3>Strategy Summary</h3>
+        <ul>
+            <li><strong>Total Links:</strong> {len(links)}</li>
+            <li><strong>Job-related Links:</strong> {len(job_links)}</li>
+            <li><strong>Forms:</strong> {len(forms)}</li>
+            <li><strong>Potential Job Containers:</strong> {len(job_containers)}</li>
+            <li><strong>Pagination Elements:</strong> {len(pagination)}</li>
+            <li><strong>API/Dynamic Content Scripts:</strong> {len(api_patterns)}</li>
+        </ul>
+        
+        <h3>Sample Job Links (First 10)</h3>
+        <ul>
+            {''.join(f'<li><a href="{a["href"]}">{a.get_text(strip=True)[:100]}</a></li>' for a in job_links[:10])}
+        </ul>
+        
+        <h3>Top Classes (for targeting)</h3>
+        <ul>
+            {''.join(f'<li>{cls}: {count}</li>' for cls, count in class_counts[:10])}
+        </ul>
+        
+        <h3>Top IDs (for targeting)</h3>
+        <ul>
+            {''.join(f'<li>{id_}: {count}</li>' for id_, count in id_counts[:10])}
+        </ul>
+        
+        <h3>Job Container Samples</h3>
+        <ul>
+            {''.join(f'<li>{elem.name} class="{elem.get("class")}"</li>' for elem in job_containers[:5])}
+        </ul>
+        
+        <h3>Extraction Strategy</h3>
+        <ol>
+            <li>{'Use API scraping - detected dynamic content' if api_patterns else 'Use direct HTML parsing'}</li>
+            <li>{'Target pagination elements for multi-page scraping' if pagination else 'Single page listing'}</li>
+            <li>Job selector: {job_containers[0].name + '.' + '.'.join(job_containers[0].get('class', [])) if job_containers else 'Manual inspection needed'}</li>
+            <li>Link extraction: {'Filter links containing job keywords' if job_links else 'Check for dynamic loading'}</li>
+        </ol>
+    </body>
+    </html>
+    """
+    
+    return html_summary
 
 @tool
 def get_NOVARTIS_jobs() -> str:
