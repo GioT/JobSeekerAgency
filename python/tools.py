@@ -363,7 +363,7 @@ def get_YPSOMED_jobs():
     # this runs outside of async
     ## await get_YPSOMED_jobs() # from juypyter
     result = asyncio.run(get_ypsomed_jobs())
-    print(result)
+    # print(result)
     return result
 
 @tool

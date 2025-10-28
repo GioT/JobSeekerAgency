@@ -17,9 +17,18 @@ from typing import List,Sequence,TypedDict,Annotated,Literal
 # =======================
 
  # define the format of the final joblist
-class JobList(BaseModel):
+# class JobList(BaseModel):
+#     name: str = Field(description='Name of the job')
+#     url: list = Field(description='The url of the job')
+
+
+## suggestion from Claude on how propertly format job list
+class Job(BaseModel):
     name: str = Field(description='Name of the job')
-    url: list = Field(description='The url of the job')
+    url: str = Field(description='The url of the job')
+
+class JobList(BaseModel):
+    jobs: list[Job] = Field(description='List of jobs')
 
 # FUNCTIONS
 # =======================
@@ -43,8 +52,9 @@ def joblist_formatting(state):
     parser       = PydanticOutputParser(pydantic_object=JobList)
     human_prompt = HumanMessagePromptTemplate.from_template("{request}\n{format_instructions}")
     chat_prompt  = ChatPromptTemplate.from_messages([human_prompt])
-    request      = chat_prompt.format_prompt(request=f"can you split this list {state['joblist']}, which contains job name and url into a nice json format?",
-                                         format_instructions=parser.get_format_instructions()).to_messages()
+    question     = f"""can you split this list {state['joblist']}, which contains job name and url into a nice json format?
+    ONLY ouput a json format without JSON block markers (```json and ```)"""
+    request      = chat_prompt.format_prompt(request=question,format_instructions=parser.get_format_instructions()).to_messages()
     model        = ChatAnthropic(model='claude-sonnet-4-5',temperature=0)
     response     = model.invoke(request)
 
