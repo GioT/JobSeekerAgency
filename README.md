@@ -6,3 +6,4 @@
 * pip install "langchain[anthropic]"
 * pip install bs4
 * pip install playwright; playwright install
+* pip install grandalf
