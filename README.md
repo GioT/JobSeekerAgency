@@ -1,9 +1,13 @@
-# JobSeekerAgency
+JobSeekerAgency: Agents looking for work
+----------------------------------------------
 
-## Install
-* create environment: conda create -n llms python=3.12 ipykernel; conda activate llms
-* enable kernel on jupyter: ipython kernel install --user --name=llms
-* pip install "langchain[anthropic]"
-* pip install bs4
-* pip install playwright; playwright install
-* pip install grandalf
+A simple use case as a Jupyter notebook can be found at `vignettess/RunJobSearch.ipynb`.
+
+### To go through the notebook report:
+--------------------------------------
+* install your virtual env with conda: `conda create -n llms2 python=3.12 ipykernel; conda activate llms2`
+<br>OR
+* install your virtual env with python: `python -m env llms2`, then `source llms2/bin/activate`
+* install dependencies: `pip install -r requirements.txt`
+* instal playwright: `playwright install`
+* enable the kernel on Jupyter notebook: `ipython kernel install --user --name=llms2`

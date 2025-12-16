@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from typing import List,Sequence,TypedDict,Annotated,Literal
 
 ## Custom scripts:
-from tools import *
+from python.tools import *
 
 # Tools
 # =======================
@@ -25,12 +25,6 @@ web_tools = [get_summary_html]
 
 # CLASSES
 # =======================
-
- # define the format of the final joblist
-# class JobList(BaseModel):
-#     name: str = Field(description='Name of the job')
-#     url: list = Field(description='The url of the job')
-
 
 ## suggestion from Claude on how propertly format job list
 class Job(BaseModel):
