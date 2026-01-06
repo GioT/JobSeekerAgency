@@ -444,3 +444,346 @@ def get_VISIUM_jobs():
     result = asyncio.run(get_visium_jobs())
     # print(result)
     return result
+
+@tool
+def get_ROCHE_jobs() -> str:
+    """This tool function helps you get ROCHE current job list"""
+    
+    URL = "https://roche.wd3.myworkdayjobs.com/en-US/roche-ext?q=machine%20learning&locations=3543744a0e67010b8e1b9bd75b7637a4"
+    
+    async def get_roche_jobs(url: str):
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            
+            await page.goto(url, wait_until='domcontentloaded')
+            await asyncio.sleep(5)
+            
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            await asyncio.sleep(3)
+            
+            content = await page.content()
+            await browser.close()
+            
+            soup = BeautifulSoup(content, 'html.parser')
+            
+            job_items = soup.find_all('li', {'data-automation-id': 'listItem'})
+            
+            if not job_items:
+                job_items = soup.find_all('li', class_=lambda x: x and 'job' in x.lower())
+            
+            if not job_items:
+                all_links = soup.find_all('a', href=True)
+                job_links = [link for link in all_links if '/job/' in link.get('href', '')]
+                
+                jobs_list = []
+                for idx, link in enumerate(job_links, 1):
+                    job_title = link.get_text(strip=True)
+                    job_url = link.get('href', '')
+                    if not job_url.startswith('http'):
+                        job_url = 'https://roche.wd3.myworkdayjobs.com' + job_url
+                    
+                    jobs_list.append({
+                        'number': idx,
+                        'title': job_title,
+                        'url': job_url,
+                        'location': 'N/A',
+                        'posted_date': 'N/A',
+                        'job_id': 'N/A'
+                    })
+            else:
+                jobs_list = []
+                for idx, job in enumerate(job_items, 1):
+                    title_elem = job.find('a', {'data-automation-id': 'jobTitle'})
+                    
+                    if not title_elem:
+                        title_elem = job.find('a', href=True)
+                    
+                    if title_elem:
+                        job_title = title_elem.get_text(strip=True)
+                        job_url = title_elem.get('href', '')
+                        if not job_url.startswith('http'):
+                            job_url = 'https://roche.wd3.myworkdayjobs.com' + job_url
+                        
+                        location_elem = job.find('dd', {'data-automation-id': 'location'})
+                        location = location_elem.get_text(strip=True) if location_elem else "N/A"
+                        
+                        posted_elem = job.find('dd', {'data-automation-id': 'postedOn'})
+                        posted_date = posted_elem.get_text(strip=True) if posted_elem else "N/A"
+                        
+                        job_id_elem = job.find('dd', {'data-automation-id': 'requisitionId'})
+                        job_id = job_id_elem.get_text(strip=True) if job_id_elem else "N/A"
+                        
+                        jobs_list.append({
+                            'number': idx,
+                            'title': job_title,
+                            'url': job_url,
+                            'location': location,
+                            'posted_date': posted_date,
+                            'job_id': job_id
+                        })
+            
+            if not jobs_list:
+                return "No jobs found. The page structure may have changed or the content is not loading properly."
+            
+            output = ""
+            
+            for job in jobs_list:
+                output += f"{job['title']} - {job['url']}\n"
+                # output += f"   URL: {job['url']}\n\n"
+            return output
+
+    result = asyncio.run(get_roche_jobs(URL))
+    return result
+
+@tool
+def get_CSL_jobs() -> str:
+    """This tool function helps you get CSL current job list"""
+    async def get_csl_jobs():
+        url = "https://csl.wd1.myworkdayjobs.com/en-EN/CSL_External?locationCountry=187134fccb084a0ea9b4b95f23890dbe"
+        jobs_list = []
+        
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            page = await browser.new_page()
+            
+            try:
+                await page.goto(url, wait_until='domcontentloaded', timeout=60000)
+                await asyncio.sleep(5)
+                
+                content = await page.content()
+                soup = BeautifulSoup(content, 'html.parser')
+                
+                job_links = soup.find_all('a', attrs={'data-automation-id': 'jobTitle'})
+                
+                if not job_links:
+                    await asyncio.sleep(5)
+                    content = await page.content()
+                    soup = BeautifulSoup(content, 'html.parser')
+                    job_links = soup.find_all('a', href=lambda x: x and '/job/' in x)
+                
+                for link in job_links:
+                    try:
+                        job_title = link.get_text(strip=True)
+                        job_url = link.get('href', '')
+                        
+                        if job_url and not job_url.startswith('http'):
+                            job_url = f"https://csl.wd1.myworkdayjobs.com{job_url}"
+                        
+                        parent = link.find_parent('li')
+                        if parent:
+                            location_elem = parent.find('dd', attrs={'data-automation-id': 'location'})
+                            location = location_elem.get_text(strip=True) if location_elem else "N/A"
+                            
+                            job_id_elem = parent.find('dd', attrs={'data-automation-id': 'requisitionId'})
+                            job_id = job_id_elem.get_text(strip=True) if job_id_elem else "N/A"
+                            
+                            posted_elem = parent.find('dd', attrs={'data-automation-id': 'postedOn'})
+                            posted_date = posted_elem.get_text(strip=True) if posted_elem else "N/A"
+                        else:
+                            location = "N/A"
+                            job_id = "N/A"
+                            posted_date = "N/A"
+                        
+                        if job_title and job_url:
+                            jobs_list.append({
+                                'job_title': job_title,
+                                'job_url': job_url,
+                                'location': location,
+                                'job_id': job_id,
+                                'posted_date': posted_date
+                            })
+                    except Exception as e:
+                        continue
+                
+            finally:
+                await browser.close()
+        
+        if not jobs_list:
+            return "No jobs found. The page structure may have changed or jobs are not loading properly."
+        
+        output = f"Found {len(jobs_list)} jobs:\n\n"
+        for idx, job in enumerate(jobs_list, 1):
+            output += f"{idx}. {job['job_title']}\n"
+            output += f"   URL: {job['job_url']}\n\n"
+        
+        return output
+    
+    result = asyncio.run(get_csl_jobs())
+    return(result)
+
+@tool
+def get_JJ_jobs() -> str:
+    """This tool function helps you get J&J current job list"""
+    async def get_jnj_jobs():
+        url = "https://www.careers.jnj.com/en/jobs/?search=&team=Data+Analytics+%26+Computational+Sciences&country=Switzerland&pagesize=20#results"
+        
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            context = await browser.new_context(
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            )
+            page = await context.new_page()
+            
+            try:
+                await page.goto(url, wait_until='networkidle', timeout=30000)
+                await page.wait_for_timeout(5000)
+                
+                content = await page.content()
+                soup = BeautifulSoup(content, 'html.parser')
+                
+                jobs_list = []
+                
+                job_links = soup.find_all('a', href=lambda x: x and '/job/' in x)
+                
+                if not job_links:
+                    job_links = soup.find_all('a', class_=lambda x: x and 'job' in str(x).lower())
+                
+                seen_urls = set()
+                
+                for idx, link in enumerate(job_links, 1):
+                    job_url = link.get('href', '')
+                    job_title = link.get_text(strip=True)
+                    
+                    if job_url and job_title and job_url not in seen_urls:
+                        if not job_url.startswith('http'):
+                            job_url = f"https://www.careers.jnj.com{job_url}"
+                        
+                        seen_urls.add(job_url)
+                        
+                        parent = link.find_parent()
+                        location = 'N/A'
+                        if parent:
+                            location_elem = parent.find(class_=lambda x: x and 'location' in str(x).lower())
+                            if location_elem:
+                                location = location_elem.get_text(strip=True)
+                        
+                        jobs_list.append({
+                            'job_number': len(jobs_list) + 1,
+                            'job_title': job_title,
+                            'location': location,
+                            'job_url': job_url
+                        })
+                
+                await browser.close()
+                
+                if jobs_list:
+                    result = f"Found {len(jobs_list)} jobs:\n\n"
+                    for job in jobs_list:
+                        result += f"{job['job_number']}. {job['job_title']}\n"
+                        result += f"   URL: {job['job_url']}\n\n"
+                    return result
+                else:
+                    return "No jobs found on the page. The page structure may have changed or requires different selectors."
+                    
+            except Exception as e:
+                await browser.close()
+                return f"Error occurred: {str(e)}"
+    
+    
+    return asyncio.run(get_jnj_jobs())
+
+@tool
+def get_ISO_jobs() -> str:
+    """This tool function helps you get ISO current job list"""
+    def list_iso_jobs() -> str:
+        async def _run() -> str:
+            board_url = "https://job-boards.greenhouse.io/isomorphiclabs"
+            job_url_re = re.compile(r"^https://job-boards\.greenhouse\.io/isomorphiclabs/jobs/\d+")
+    
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
+                await page.goto(board_url, wait_until="domcontentloaded", timeout=60000)
+                await page.wait_for_timeout(1500)
+    
+                html = await page.content()
+                await browser.close()
+    
+            soup = BeautifulSoup(html, "html.parser")
+    
+            jobs = []
+            for a in soup.select('a[href*="/isomorphiclabs/jobs/"]'):
+                href = (a.get("href") or "").strip()
+                if not href:
+                    continue
+                if href.startswith("/"):
+                    href = "https://job-boards.greenhouse.io" + href
+    
+                if not job_url_re.match(href):
+                    continue
+    
+                title = a.get_text(" ", strip=True)
+                if not title or title.lower() == "apply":
+                    continue
+    
+                jobs.append((title, href))
+    
+            # de-dupe while preserving order
+            seen = set()
+            lines = []
+            for title, url in jobs:
+                key = (title, url)
+                if key in seen:
+                    continue
+                seen.add(key)
+                lines.append(f"{title} - {url}\n")
+    
+            return "\n\n".join(lines) if lines else "No jobs found."
+    
+        return asyncio.run(_run())
+    
+    return list_iso_jobs()
+
+@tool 
+def get_MONTEROSA_jobs() -> str:
+    """This tool function helps you get MONTEROSA current job list"""
+    def list_monterosa_jobs() -> str:
+        async def _run() -> str:
+            careers_url = "https://www.monterosatx.com/careers/"
+    
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
+                await page.goto(careers_url, wait_until="domcontentloaded",timeout=60000)
+                html = await page.content()
+                await browser.close()
+    
+            soup = BeautifulSoup(html, "html.parser")
+    
+            jobs = []
+            seen = set()
+    
+            for a in soup.select('a[href*="careers-monterosatx.icims.com/jobs/"]'):
+                href = (a.get("href") or "").strip()
+                if not href:
+                    continue
+    
+                job_url = urljoin(careers_url, href)
+                if job_url in seen:
+                    continue
+                seen.add(job_url)
+    
+                title = " ".join(a.get_text(" ", strip=True).split())
+    
+                if not title or title.lower() in {"more info", "apply", "careers"}:
+                    container = a.find_parent(["div", "li", "article", "section"])
+                    if container:
+                        h = container.find(["h1", "h2", "h3", "h4"])
+                        if h:
+                            title = " ".join(h.get_text(" ", strip=True).split())
+    
+                if not title:
+                    slug = job_url.rstrip("/").split("/")[-2]
+                    title = slug.replace("-", " ").replace("%e2%80%93", "–").strip()
+    
+                jobs.append((title, job_url))
+    
+            if not jobs:
+                return "No jobs found."
+    
+            return "\n".join(f"{t} - {u}" for t, u in jobs)
+    
+        return asyncio.run(_run())
+    
+    return list_monterosa_jobs()

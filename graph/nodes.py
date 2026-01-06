@@ -1,3 +1,4 @@
+import os
 from typing import List,Sequence,TypedDict,Annotated,Literal
 import subprocess as sub
 ## langchain
@@ -20,7 +21,8 @@ from python.tools import *
 # Tools
 # =======================
 
-job_tools = [get_NOVARTIS_jobs,get_AWS_jobs,get_YPSOMED_jobs,get_VISIUM_jobs] # 
+job_tools = [get_NOVARTIS_jobs,get_AWS_jobs,get_YPSOMED_jobs,get_VISIUM_jobs,get_ROCHE_jobs,
+             get_CSL_jobs,get_JJ_jobs,get_ISO_jobs,get_MONTEROSA_jobs] # 
 web_tools = [get_summary_html]
 
 # CLASSES
@@ -45,13 +47,15 @@ async def call_agent(state):
 
     print(f'>> 0. First pass >>')
 
-    system_message = SystemMessage(content="""You are a helpful assistant with the following tasks:
-    - If you manage to extract a job list: please output it without any further comments
-    - If not: No comments - ONLY ouptut the word 'No'
+    system_message = SystemMessage(content="""You must ONLY use the available tools to extract job listings based on the provided url.
+- If a tool matches: use it and return the results using the url as input
+- If NO tool matches: respond with exactly one word: No
+
+Do not explain, do not apologize, do not add any other text.
     """) # 
     
-    model    = ChatAnthropic(model="claude-sonnet-4-5",temperature=0).bind_tools(job_tools)
-    # model    = ChatOpenAI(model=['gpt-4o-mini','gpt-5'][1],openai_api_key=os.environ['OPENAI_API_KEY'],temperature=0).bind_tools(tools)
+    # model    = ChatAnthropic(model="claude-sonnet-4-5",temperature=0).bind_tools(job_tools)
+    model    = ChatOpenAI(model=['gpt-4o-mini','gpt-5'][1],temperature=0).bind_tools(job_tools)
     state['question'] = ''
     response = { "messages": [await model.ainvoke([system_message]+ state["messages"])],"question": ''}
     return response
@@ -140,8 +144,8 @@ async def code_writing(state):
         # define the messages
         prompt   = ChatPromptTemplate.from_messages(state['messages']).format()
         # select coding model (here gpt 5)
-        # model    = ChatOpenAI(model=['gpt-4o-mini','gpt-5'][1],openai_api_key=os.environ['OPENAI_API_KEY'],temperature=0)
-        model      = ChatAnthropic(model="claude-sonnet-4-5",temperature=0)
+        model    = ChatOpenAI(model=['gpt-4o-mini','gpt-5','gpt-5.2-2025-12-11'][-1],temperature=0)
+        # model      = ChatAnthropic(model="claude-sonnet-4-5",temperature=0)
         # get response and prb
         response = await model.ainvoke(prompt) # you are calling the llm here!
         state['messages'].append(response) # don't forget to add message to the response!
@@ -169,12 +173,12 @@ async def code_eval(state):
 
     if 1 < 3:
         # save code to file to check whether it works
-        with open("../tmp/tmp.py", "w") as f:
+        with open("./tmp/tmp.py", "w") as f:
             f.write(state['codescript'])
         f.close()
     
     # run and check outputs
-    p = sub.run( 'python ../tmp/tmp.py',shell=True, capture_output=True )
+    p = sub.run( 'python ./tmp/tmp.py',shell=True, capture_output=True )
     exit_status = '\n* exit status: '+ str(p.returncode)
     stdout      = '\n* stdout: ' + p.stdout.decode()
     stderr      = '\n* stderr:' + p.stderr.decode()
