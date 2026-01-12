@@ -20,7 +20,7 @@ from typing import List,Sequence,TypedDict,Annotated,Literal
 # FUNCTIONS
 # =======================
 
-def Router1(state)-> Literal['jobTools','codePlanner','formatter']:
+def Router1(state)-> Literal['jobTools','codePlanner','filterer']:
     """
     first pass, decides whether to call tool -> formatting or write code to extract jobs
     """
@@ -37,7 +37,7 @@ def Router1(state)-> Literal['jobTools','codePlanner','formatter']:
     elif last_message.content == 'No':
         print('> 0.3 proceeding to code planner')
         return "codePlanner"
-    return 'formatter'
+    return 'filterer'
 
 def Router2(state)-> Literal['webTools','codeWriter']:
     """

@@ -22,7 +22,7 @@ from python.tools import *
 # =======================
 
 job_tools = [get_NOVARTIS_jobs,get_AWS_jobs,get_YPSOMED_jobs,get_VISIUM_jobs,get_ROCHE_jobs,
-             get_CSL_jobs,get_JJ_jobs,get_ISO_jobs,get_MONTEROSA_jobs] # 
+             get_CSL_jobs,get_JJ_jobs,get_ISO_jobs,get_MONTEROSA_jobs,get_IDORSIA_jobs] # 
 web_tools = [get_summary_html]
 
 # CLASSES
@@ -88,16 +88,49 @@ async def code_planning(state):
     
     return response
 
+async def joblist_filtering(state):
+    """
+    Takes the list of job and filter
+    """
+
+    print(f'>> 1.a filtering relevant jobs >>')
+    
+    messages = state['messages']
+    state['joblist'] = messages[-1].content
+
+    system_message = SystemMessage(content="""You are a strict job filter. ONLY return jobs that are directly related to:
+- Machine Learning / AI
+- Cheminformatics
+- Computational Assisted Drug Discovery (CADD)
+- Computational Chemistry
+- Data Science
+
+EXCLUDE jobs like: DevOps, statistician, Software Engineering, Tech Lead, general Post-Doc positions, general scientific associate, or any role not directly involving the above fields.
+Return ONLY the filtered job list in the same format.""")
+
+    question   = f"Filter and return ONLY relevant jobs from:\n{state['joblist']}"
+    human_message = HumanMessage(content=question)
+    # 3. ask model
+    model = ChatOpenAI(model=['gpt-4o-mini','gpt-5','gpt-5.2-2025-12-11'][-1],temperature=0)
+    messages = [system_message]+ [human_message]
+    # print(messages)
+    result = await model.ainvoke(messages)
+    # print(result)
+    response = { "messages": [result], "joblist":result.content }
+        
+    return response
+
+
 async def joblist_formatting(state):
     """
     Simply takes the list of job list string and formats to json
     """
 
-    print(f'>> 1.a Formatting job list >>')
+    print(f'>> 2.a Formatting job list >>')
     
     messages = state['messages']
     # state["messages"].append(system_message)
-    state['joblist'] = messages[-1].content
+    # state['joblist'] = messages[-1].content
     
     # require output to match JobList from Pydantic
     parser       = PydanticOutputParser(pydantic_object=JobList)

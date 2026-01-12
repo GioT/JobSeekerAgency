@@ -787,3 +787,73 @@ def get_MONTEROSA_jobs() -> str:
         return asyncio.run(_run())
     
     return list_monterosa_jobs()
+
+@tool
+def get_IDORSIA_jobs() -> str:
+    """This tool function helps you get IDORSIA current job list"""
+    
+    def list_idorsia_jobs() -> str:
+        async def _run() -> str:
+            url = "https://careers.idorsia.com/search/?createNewAlert=false&q=&locationsearch=switzerland"
+    
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
+                await page.goto(url, wait_until="domcontentloaded")
+    
+                try:
+                    await page.wait_for_selector('a[href*="/job/"]', timeout=20000)
+                except Exception:
+                    pass
+    
+                # Grab DOM after the JS has had a chance to render job links
+                html = await page.content()
+                await browser.close()
+    
+            soup = BeautifulSoup(html, "html.parser")
+    
+            # Prefer the expected selector, but fall back to any "/job/" anchors
+            anchors = soup.select("a.jobTitle-link[href]") or soup.select('a[href*="/job/"]')
+    
+            jobs = []
+            for a in anchors:
+                href = (a.get("href") or "").strip()
+                if "/job/" not in href:
+                    continue
+    
+                title = a.get_text(" ", strip=True)
+                if not title:
+                    m = re.search(r"/job/([^/]+)/\d+/?", href)
+                    if m:
+                        title = m.group(1).replace("-", " ").strip()
+                    else:
+                        continue
+    
+                full_url = urljoin(url, href)
+    
+                date_posted = ""
+                container = a.find_parent("tr") or a.find_parent("li") or a.find_parent("div")
+                if container:
+                    date_el = container.select_one(".jobDate")
+                    if date_el:
+                        date_posted = date_el.get_text(" ", strip=True)
+    
+                jobs.append((full_url, title, date_posted))
+    
+            # de-dup by URL, preserve order
+            seen = set()
+            lines = []
+            for full_url, title, date_posted in jobs:
+                if full_url in seen:
+                    continue
+                seen.add(full_url)
+                # lines.append(f"{title} | {date_posted} | {full_url}" if date_posted else f"{title} | {full_url}")
+                lines.append(f"{title} | {full_url}")
+    
+            return "\n".join(lines)
+    
+        return asyncio.run(_run())
+    
+    return list_idorsia_jobs()
+    
+ 
