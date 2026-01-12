@@ -1,8 +1,11 @@
+import os
 import pandas as pd
 import json
 from datetime import datetime
+import smtplib
+from email.message import EmailMessage
 
-def update_joblist(messages) -> None:
+def update_joblist(messages,company_name) -> None:
     """
     Tries to update the joblist list csv based on AWF results
     :param state messages:
@@ -20,7 +23,7 @@ def update_joblist(messages) -> None:
         print('>> could not find any relevant jobs or some issue with the query...')
     
     if jobs_json != None:
-        df_tmp = pd.DataFrame(jobs_json).assign(date = todate, company=select.lower())
+        df_tmp = pd.DataFrame(jobs_json).assign(date = todate, company=company_name.lower())
         df_tmp['date'] = pd.to_datetime(df_tmp['date'],format='%Y-%m-%d')
         
         if 11<3:
