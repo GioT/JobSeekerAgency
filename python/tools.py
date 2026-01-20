@@ -1,11 +1,30 @@
 import asyncio
 import re
+import json
+import os
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
 from langchain.tools import tool
 import requests
 from collections import Counter
+
+# Load company career page URLs from JSON file
+def _load_career_urls() -> dict:
+    """Load company to career page URL mapping from JSON file."""
+    # Try multiple possible paths
+    possible_paths = [
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'company2careerpage.json'),
+        './data/company2careerpage.json',
+        '../data/company2careerpage.json',
+    ]
+    for path in possible_paths:
+        if os.path.exists(path):
+            with open(path, 'r') as f:
+                return json.load(f)
+    return {}
+
+COMPANY_URLS = _load_career_urls()
 
 @tool
 def get_summary_html(url: str) -> str:
@@ -93,9 +112,9 @@ def get_summary_html(url: str) -> str:
 @tool
 def get_NOVARTIS_jobs() -> str:
     """
-    This tool function helps you get NOVARTIS current job list 
+    This tool function helps you get NOVARTIS current job list
     """
-    URL = "https://www.novartis.com/careers/career-search?search_api_fulltext=data&country%5B0%5D=LOC_CH&field_job_posted_date=All&op=Submit&page=0"
+    URL = COMPANY_URLS.get("NOVARTIS", "https://www.novartis.com/careers/career-search?search_api_fulltext=data&country%5B0%5D=LOC_CH&field_job_posted_date=All&op=Submit&page=0")
 
 
     def _norm(text: str) -> str:
@@ -242,9 +261,9 @@ def get_NOVARTIS_jobs() -> str:
 @tool
 def get_AWS_jobs() -> str:
     """
-    This tool function helps you get AWS current job list 
+    This tool function helps you get AWS current job list
     """
-    URL = "https://www.amazon.jobs/content/en/locations/switzerland/zurich?category%5B%5D=Solutions+Architect"
+    URL = COMPANY_URLS.get("AWS", "https://www.amazon.jobs/content/en/locations/switzerland/zurich?category%5B%5D=Solutions+Architect")
 
     async def list_jobs(url: str):
         async with async_playwright() as p:
@@ -303,12 +322,13 @@ def get_AWS_jobs() -> str:
 @tool
 def get_YPSOMED_jobs():
     """This tool function helps you get YPSOMED current job list"""
-    
-    async def get_ypsomed_jobs():    
+    URL = COMPANY_URLS.get("YPSOMED", "https://careers.ypsomed.com/ypsomed/en/professional/")
+
+    async def get_ypsomed_jobs():
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             page = await browser.new_page()
-            await page.goto('https://careers.ypsomed.com/ypsomed/en/professional/', wait_until='networkidle')
+            await page.goto(URL, wait_until='networkidle')
             
             await page.wait_for_timeout(5000)
             
@@ -369,11 +389,13 @@ def get_YPSOMED_jobs():
 @tool
 def get_VISIUM_jobs():
     """This tool function helps you get VISIUM current job list"""
+    URL = COMPANY_URLS.get("VISIUM", "https://www.visium.com/join-us#open-positions")
+
     async def get_visium_jobs():
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
             page = await browser.new_page()
-            await page.goto('https://www.visium.com/join-us#open-positions', wait_until='networkidle')
+            await page.goto(URL, wait_until='networkidle')
             await page.wait_for_timeout(5000)
             
             await page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
@@ -448,8 +470,7 @@ def get_VISIUM_jobs():
 @tool
 def get_ROCHE_jobs() -> str:
     """This tool function helps you get ROCHE current job list"""
-    
-    URL = "https://roche.wd3.myworkdayjobs.com/en-US/roche-ext?q=machine%20learning&locations=3543744a0e67010b8e1b9bd75b7637a4"
+    URL = COMPANY_URLS.get("ROCHE", "https://roche.wd3.myworkdayjobs.com/en-US/roche-ext?q=machine%20learning&locations=3543744a0e67010b8e1b9bd75b7637a4")
     
     async def get_roche_jobs(url: str):
         async with async_playwright() as p:
@@ -539,8 +560,10 @@ def get_ROCHE_jobs() -> str:
 @tool
 def get_CSL_jobs() -> str:
     """This tool function helps you get CSL current job list"""
+    URL = COMPANY_URLS.get("CSL", "https://csl.wd1.myworkdayjobs.com/en-EN/CSL_External?locationCountry=187134fccb084a0ea9b4b95f23890dbe")
+
     async def get_csl_jobs():
-        url = "https://csl.wd1.myworkdayjobs.com/en-EN/CSL_External?locationCountry=187134fccb084a0ea9b4b95f23890dbe"
+        url = URL
         jobs_list = []
         
         async with async_playwright() as p:
@@ -615,8 +638,10 @@ def get_CSL_jobs() -> str:
 @tool
 def get_JJ_jobs() -> str:
     """This tool function helps you get J&J current job list"""
+    URL = COMPANY_URLS.get("J&J", "https://www.careers.jnj.com/en/jobs/?search=&team=Data+Analytics+%26+Computational+Sciences&country=Switzerland&pagesize=20#results")
+
     async def get_jnj_jobs():
-        url = "https://www.careers.jnj.com/en/jobs/?search=&team=Data+Analytics+%26+Computational+Sciences&country=Switzerland&pagesize=20#results"
+        url = URL
         
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
@@ -686,9 +711,11 @@ def get_JJ_jobs() -> str:
 @tool
 def get_ISO_jobs() -> str:
     """This tool function helps you get ISO current job list"""
+    URL = COMPANY_URLS.get("ISO", "https://job-boards.greenhouse.io/isomorphiclabs")
+
     def list_iso_jobs() -> str:
         async def _run() -> str:
-            board_url = "https://job-boards.greenhouse.io/isomorphiclabs"
+            board_url = URL
             job_url_re = re.compile(r"^https://job-boards\.greenhouse\.io/isomorphiclabs/jobs/\d+")
     
             async with async_playwright() as p:
@@ -735,12 +762,14 @@ def get_ISO_jobs() -> str:
     
     return list_iso_jobs()
 
-@tool 
+@tool
 def get_MONTEROSA_jobs() -> str:
     """This tool function helps you get MONTEROSA current job list"""
+    URL = COMPANY_URLS.get("MONTEROSA", "https://www.monterosatx.com/careers/")
+
     def list_monterosa_jobs() -> str:
         async def _run() -> str:
-            careers_url = "https://www.monterosatx.com/careers/"
+            careers_url = URL
     
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)
@@ -791,10 +820,11 @@ def get_MONTEROSA_jobs() -> str:
 @tool
 def get_IDORSIA_jobs() -> str:
     """This tool function helps you get IDORSIA current job list"""
-    
+    URL = COMPANY_URLS.get("IDORSIA", "https://careers.idorsia.com/search/?createNewAlert=false&q=&locationsearch=switzerland")
+
     def list_idorsia_jobs() -> str:
         async def _run() -> str:
-            url = "https://careers.idorsia.com/search/?createNewAlert=false&q=&locationsearch=switzerland"
+            url = URL
     
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)
@@ -859,10 +889,11 @@ def get_IDORSIA_jobs() -> str:
 @tool
 def get_MERCK_jobs() -> str:
     """This tool function helps you get MERCK current job list filtered by AI keywords"""
+    URL = COMPANY_URLS.get("MERCK", "https://careers.merckgroup.com/global/en/search-results?m=3&keywords=AI")
 
     def list_merck_jobs() -> str:
         async def _run() -> str:
-            url = "https://careers.merckgroup.com/global/en/search-results?m=3&keywords=AI"
+            url = URL
 
             async with async_playwright() as p:
                 browser = await p.chromium.launch(headless=True)
@@ -918,3 +949,71 @@ def get_MERCK_jobs() -> str:
         return asyncio.run(_run())
 
     return list_merck_jobs()
+
+
+@tool
+def get_HAYA_jobs() -> str:
+    """This tool function helps you get HAYA Therapeutics current job list"""
+    URL = COMPANY_URLS.get("HAYA", "https://www.hayatx.com/careers/")
+
+    def list_haya_jobs() -> str:
+        async def _run() -> str:
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
+                await page.goto(URL, wait_until="networkidle")
+
+                await page.wait_for_timeout(5000)
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await page.wait_for_timeout(2000)
+
+                html = await page.content()
+                await browser.close()
+
+            soup = BeautifulSoup(html, "html.parser")
+
+            jobs = []
+            seen = set()
+
+            # Find job links - BambooHR and LinkedIn job postings
+            for a in soup.select('a[href*="bamboohr.com/careers"], a[href*="linkedin.com/jobs"]'):
+                href = (a.get("href") or "").strip()
+                if not href or href in seen:
+                    continue
+                seen.add(href)
+
+                # Get title from link text directly
+                link_text = a.get_text(" ", strip=True)
+
+                # Filter for Switzerland (Lausanne/CH) positions only
+                if "Lausanne" not in link_text and "(CH)" not in link_text:
+                    continue
+
+                # Extract title from pattern: "[New] Location (XX) Title Location (XX) Details"
+                # Pattern matches: location, then captures everything until next location
+                match = re.search(
+                    r'(?:New\s+)?Lausanne\s*\(CH\)\s+(.+?)\s+Lausanne\s*\(CH\)',
+                    link_text
+                )
+                if match:
+                    title = match.group(1).strip()
+                else:
+                    # Fallback: clean up the link text
+                    title = link_text
+                    title = re.sub(r'^New\s+', '', title)
+                    title = re.sub(r'^Lausanne\s*\(CH\)\s*', '', title)
+                    title = re.sub(r'\s+Lausanne\s*\(CH\).*$', '', title)
+
+                if title and len(title) > 5:
+                    jobs.append((title, href))
+
+            # De-duplicate by URL, preserve order
+            lines = []
+            for title, url in jobs:
+                lines.append(f"{title} | {url}")
+
+            return "\n".join(lines) if lines else "No jobs found."
+
+        return asyncio.run(_run())
+
+    return list_haya_jobs()
