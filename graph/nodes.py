@@ -22,7 +22,7 @@ from python.tools import *
 # =======================
 
 job_tools = [get_NOVARTIS_jobs,get_AWS_jobs,get_YPSOMED_jobs,get_VISIUM_jobs,get_ROCHE_jobs,
-             get_CSL_jobs,get_JJ_jobs,get_ISO_jobs,get_MONTEROSA_jobs,get_IDORSIA_jobs] # 
+             get_CSL_jobs,get_JJ_jobs,get_ISO_jobs,get_MONTEROSA_jobs,get_IDORSIA_jobs,get_MERCK_jobs] # 
 web_tools = [get_summary_html]
 
 # CLASSES

@@ -855,5 +855,66 @@ def get_IDORSIA_jobs() -> str:
         return asyncio.run(_run())
     
     return list_idorsia_jobs()
-    
- 
+
+@tool
+def get_MERCK_jobs() -> str:
+    """This tool function helps you get MERCK current job list filtered by AI keywords"""
+
+    def list_merck_jobs() -> str:
+        async def _run() -> str:
+            url = "https://careers.merckgroup.com/global/en/search-results?m=3&keywords=AI"
+
+            async with async_playwright() as p:
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page()
+                await page.goto(url, wait_until="domcontentloaded")
+
+                try:
+                    await page.wait_for_selector('[data-ph-at-id="job-link"]', timeout=20000)
+                except Exception:
+                    pass
+
+                await page.wait_for_timeout(3000)
+                html = await page.content()
+                await browser.close()
+
+            soup = BeautifulSoup(html, "html.parser")
+            anchors = soup.select('a[data-ph-at-id="job-link"]')
+
+            jobs = []
+            for a in anchors:
+                href = (a.get("href") or "").strip()
+                if not href or href == "#":
+                    continue
+
+                title = a.get_text(" ", strip=True)
+                if not title:
+                    m = re.search(r"/job/\d+/([^?]+)", href)
+                    if m:
+                        title = m.group(1).replace("-", " ").strip()
+                    else:
+                        continue
+
+                if href.startswith("/"):
+                    full_url = urljoin("https://careers.merckgroup.com", href)
+                elif href.startswith("http"):
+                    full_url = href
+                else:
+                    full_url = urljoin(url, href)
+
+                jobs.append((full_url, title))
+
+            # De-duplicate by URL, preserve order
+            seen = set()
+            lines = []
+            for full_url, title in jobs:
+                if full_url in seen:
+                    continue
+                seen.add(full_url)
+                lines.append(f"{title} | {full_url}")
+
+            return "\n".join(lines)
+
+        return asyncio.run(_run())
+
+    return list_merck_jobs()
