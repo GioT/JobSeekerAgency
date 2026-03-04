@@ -13,3 +13,4 @@ langgraph==1.0.1
 bs4==0.0.2
 playwright==1.55.0
 grandalf==0.8
+geopy==2.4.1
